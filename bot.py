@@ -5,9 +5,17 @@ import os
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 GROUP_ID = os.getenv('GROUP_ID')  # ID группы, куда будут пересылаться сообщения
 
+# Команда для получения ID чата
+@bot.message_handler(commands=['getid'])
+def send_chat_id(message):
+    bot.reply_to(message, f"ID чата: {message.chat.id}")
+
 # Обработчик всех текстовых сообщений от пользователей (не из группы)
 @bot.message_handler(content_types=['text', 'photo', 'document', 'sticker', 'video', 'audio'])
 def handle_user_message(message):
+    if GROUP_ID is None:
+        bot.send_message(message.chat.id, "Ошибка: GROUP_ID не задан. Установите переменную окружения GROUP_ID в настройках сервера.")
+        return
     if message.chat.id != int(GROUP_ID):  # Проверяем, что сообщение не из группы
         # Пересылаем сообщение в группу
         forwarded_message = bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
@@ -19,6 +27,8 @@ def handle_user_message(message):
 
 # Обработчик ответов в группе
 def handle_group_reply(reply, original_chat_id, original_message_id):
+    if GROUP_ID is None:
+        return
     if reply.chat.id == int(GROUP_ID) and reply.reply_to_message:  # Проверяем, что это ответ в группе
         # Проверяем, что ответ на пересланное сообщение
         if reply.reply_to_message.forward_from or reply.reply_to_message.forward_from_chat:
@@ -26,7 +36,4 @@ def handle_group_reply(reply, original_chat_id, original_message_id):
             bot.send_message(original_chat_id, reply.text)
 
 # Запуск бота
-@bot.message_handler(commands=['getid'])
-def send_chat_id(message):
-    bot.reply_to(message, f"ID чата: {message.chat.id}")
 bot.polling(none_stop=True)
