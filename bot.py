@@ -26,7 +26,7 @@ def handle_user_message(message):
         bot.send_message(message.chat.id, "Ошибка: GROUP_ID не задан. Установите переменную окружения GROUP_ID в настройках сервера.")
         logging.error("GROUP_ID is not set")
         return
-    if message.chat.id != int(GROUP_ID):  # Проверяем, что сообщение не из группы
+    if str(message.chat.id) != GROUP_ID:  # Проверяем, что сообщение не из группы
         try:
             # Пересылаем сообщение в группу
             forwarded_message = bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
@@ -36,20 +36,23 @@ def handle_user_message(message):
                 'original_chat_id': message.chat.id,
                 'original_message_id': message.message_id
             }
+            logging.debug(f"Stored in message_map: {forwarded_message.message_id} -> {message_map[forwarded_message.message_id]}")
         except Exception as e:
             logging.error(f"Error forwarding message: {e}")
             bot.send_message(message.chat.id, f"Ошибка при пересылке сообщения: {e}")
 
 # Обработчик всех текстовых сообщений в группе
-@bot.message_handler(content_types=['text'], func=lambda message: message.chat.id == int(GROUP_ID))
+@bot.message_handler(content_types=['text'], func=lambda message: str(message.chat.id) == GROUP_ID)
 def handle_group_reply(message):
     if GROUP_ID is None:
         logging.error("GROUP_ID is not set in group reply handler")
         return
+    logging.debug(f"Received message in group {GROUP_ID}: {message.text}, reply_to_message: {message.reply_to_message.message_id if message.reply_to_message else None}")
     if message.reply_to_message:  # Проверяем, что это ответ на сообщение
         try:
             # Получаем данные о пересланном сообщении
             chat_data = message_map.get(message.reply_to_message.message_id)
+            logging.debug(f"Looking for chat_data for message ID {message.reply_to_message.message_id}: {chat_data}")
             if chat_data and 'original_chat_id' in chat_data:
                 original_chat_id = chat_data['original_chat_id']
                 # Отправляем ответ пользователю
@@ -57,9 +60,19 @@ def handle_group_reply(message):
                 logging.info(f"Reply sent to user {original_chat_id} from group {GROUP_ID}, reply message ID: {sent_message.message_id}")
             else:
                 logging.warning(f"No chat data found for message ID {message.reply_to_message.message_id}")
+                bot.send_message(GROUP_ID, f"Не удалось найти информацию о пересланном сообщении. Убедитесь, что вы отвечаете на сообщение, пересланное ботом.")
         except Exception as e:
             logging.error(f"Error handling group reply: {e}")
             bot.send_message(GROUP_ID, f"Ошибка при отправке ответа: {e}")
+
+# Очистка старых записей в message_map для экономии памяти
+def clean_message_map():
+    # Удаляем записи старше 1 часа (3600 секунд)
+    current_time = time.time()
+    expired_keys = [key for key, value in message_map.items() if current_time - value.get('timestamp', 0) > 3600]
+    for key in expired_keys:
+        del message_map[key]
+    logging.debug(f"Cleaned message_map, remaining entries: {len(message_map)}")
 
 # Запуск бота с обработкой ошибок
 while True:
@@ -69,3 +82,4 @@ while True:
     except Exception as e:
         logging.error(f"Polling error: {e}")
         time.sleep(5)  # Ждём 5 секунд перед повторной попыткой
+        clean_message_map()  # Очищаем message_map при перезапуске
