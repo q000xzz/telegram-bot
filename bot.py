@@ -10,6 +10,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 GROUP_ID = os.getenv('GROUP_ID')  # ID группы, куда будут пересылаться сообщения
 
+# Словарь для хранения связи между ID пересланных сообщений и оригинальными чатами
+message_map = {}
+
 # Команда для получения ID чата
 @bot.message_handler(commands=['getid'])
 def send_chat_id(message):
@@ -28,8 +31,8 @@ def handle_user_message(message):
             # Пересылаем сообщение в группу
             forwarded_message = bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
             logging.info(f"Message forwarded from {message.chat.id} to group {GROUP_ID}, forwarded message ID: {forwarded_message.message_id}")
-            # Сохраняем информацию о пользователе в словаре
-            bot.set_chat_data(GROUP_ID, forwarded_message.message_id, {'original_chat_id': message.chat.id})
+            # Сохраняем связь в словаре
+            message_map[forwarded_message.message_id] = {'original_chat_id': message.chat.id}
         except Exception as e:
             logging.error(f"Error forwarding message: {e}")
             bot.send_message(message.chat.id, f"Ошибка при пересылке сообщения: {e}")
@@ -43,7 +46,7 @@ def handle_group_reply(message):
     if message.reply_to_message:  # Проверяем, что это ответ на сообщение
         try:
             # Получаем данные о пересланном сообщении
-            chat_data = bot.get_chat_data(GROUP_ID, message.reply_to_message.message_id)
+            chat_data = message_map.get(message.reply_to_message.message_id)
             if chat_data and 'original_chat_id' in chat_data:
                 original_chat_id = chat_data['original_chat_id']
                 # Отправляем ответ пользователю
