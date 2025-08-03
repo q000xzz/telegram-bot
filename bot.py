@@ -13,6 +13,12 @@ GROUP_ID = os.getenv('GROUP_ID')  # ID группы, куда будут пер�
 # Словарь для хранения связи между ID пересланных сообщений и оригинальными чатами
 message_map = {}
 
+# Команда /start
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "Добро пожаловать! Напишите мне, и я перешлю ваше сообщение в группу.")
+    logging.info(f"Start command received from {message.chat.id}")
+
 # Команда для получения ID чата
 @bot.message_handler(commands=['getid'])
 def send_chat_id(message):
@@ -34,7 +40,8 @@ def handle_user_message(message):
             # Сохраняем связь в словаре
             message_map[forwarded_message.message_id] = {
                 'original_chat_id': message.chat.id,
-                'original_message_id': message.message_id
+                'original_message_id': message.message_id,
+                'timestamp': time.time()
             }
             logging.debug(f"Stored in message_map: {forwarded_message.message_id} -> {message_map[forwarded_message.message_id]}")
         except Exception as e:
