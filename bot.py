@@ -55,7 +55,7 @@ def handle_group_reply(message):
         logging.error("GROUP_ID is not set in group reply handler")
         return
     logging.debug(f"Received message in group {GROUP_ID}: {message.text}, reply_to_message: {message.reply_to_message.message_id if message.reply_to_message else None}")
-    if message.reply_to_message:  # Проверяем, что это ответ на сообщение
+    if message.reply_to_message and hasattr(message.reply_to_message, 'forward_from') or hasattr(message.reply_to_message, 'forward_from_chat'):
         try:
             # Получаем данные о пересланном сообщении
             chat_data = message_map.get(message.reply_to_message.message_id)
@@ -71,6 +71,8 @@ def handle_group_reply(message):
         except Exception as e:
             logging.error(f"Error handling group reply: {e}")
             bot.send_message(GROUP_ID, f"Ошибка при отправке ответа: {e}")
+    else:
+        logging.debug(f"Message is not a reply or not forwarded: {message.reply_to_message}")
 
 # Очистка старых записей в message_map для экономии памяти
 def clean_message_map():
