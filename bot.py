@@ -1,5 +1,9 @@
 import telebot
 import os
+import logging
+
+# Настройка логирования для отладки
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Инициализация бота
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
@@ -9,31 +13,49 @@ GROUP_ID = os.getenv('GROUP_ID')  # ID группы, куда будут пер�
 @bot.message_handler(commands=['getid'])
 def send_chat_id(message):
     bot.reply_to(message, f"ID чата: {message.chat.id}")
+    logging.info(f"Chat ID requested: {message.chat.id}")
 
-# Обработчик всех текстовых сообщений от пользователей (не из группы)
+# Обработчик всех сообщений от пользователей (не из группы)
 @bot.message_handler(content_types=['text', 'photo', 'document', 'sticker', 'video', 'audio'])
 def handle_user_message(message):
     if GROUP_ID is None:
         bot.send_message(message.chat.id, "Ошибка: GROUP_ID не задан. Установите переменную окружения GROUP_ID в настройках сервера.")
+        logging.error("GROUP_ID is not set")
         return
     if message.chat.id != int(GROUP_ID):  # Проверяем, что сообщение не из группы
-        # Пересылаем сообщение в группу
-        forwarded_message = bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
-        # Сохраняем связь между оригинальным сообщением и пересланным
-        bot.register_next_step_handler_by_chat_id(
-            GROUP_ID,
-            lambda reply: handle_group_reply(reply, message.chat.id, message.message_id)
-        )
+        try:
+            # Пересылаем сообщение в группу
+            forwarded_message = bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
+            logging.info(f"Message forwarded from {message.chat.id} to group {GROUP_ID}, forwarded message ID: {forwarded_message.message_id}")
+            # Сохраняем информацию о пользователе в словаре
+            bot.set_chat_data(GROUP_ID, forwarded_message.message_id, {'original_chat_id': message.chat.id})
+        except Exception as e:
+            logging.error(f"Error forwarding message: {e}")
+            bot.send_message(message.chat.id, "Ошибка при пересылке сообщения.")
 
-# Обработчик ответов в группе
-def handle_group_reply(reply, original_chat_id, original_message_id):
+# Обработчик всех текстовых сообщений в группе
+@bot.message_handler(content_types=['text'], func=lambda message: message.chat.id == int(GROUP_ID))
+def handle_group_reply(message):
     if GROUP_ID is None:
+        logging.error("GROUP_ID is not set in group reply handler")
         return
-    if reply.chat.id == int(GROUP_ID) and reply.reply_to_message:  # Проверяем, что это ответ в группе
-        # Проверяем, что ответ на пересланное сообщение
-        if reply.reply_to_message.forward_from or reply.reply_to_message.forward_from_chat:
-            # Отправляем ответ пользователю
-            bot.send_message(original_chat_id, reply.text)
+    if message.reply_to_message:  # Проверяем, что это ответ на сообщение
+        try:
+            # Получаем данные о пересланном сообщении
+            chat_data = bot.get_chat_data(GROUP_ID, message.reply_to_message.message_id)
+            if chat_data and 'original_chat_id' in chat_data:
+                original_chat_id = chat_data['original_chat_id']
+                # Отправляем ответ пользователю
+                bot.send_message(original_chat_id, message.text)
+                logging.info(f"Reply sent to user {original_chat_id} from group {GROUP_ID}")
+            else:
+                logging.warning(f"No chat data found for message ID {message.reply_to_message.message_id}")
+        except Exception as e:
+            logging.error(f"Error handling group reply: {e}")
+            bot.send_message(GROUP_ID, f"Ошибка при отправке ответа: {e}")
 
 # Запуск бота
-bot.polling(none_stop=True)
+try:
+    bot.polling(none_stop=True)
+except Exception as e:
+    logging.error(f"Polling error: {e}")
