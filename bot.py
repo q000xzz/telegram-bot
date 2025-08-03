@@ -2,7 +2,6 @@ import telebot
 import os
 import logging
 import time
-from telebot import apihelper
 
 # Настройка логирования для отладки
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -10,19 +9,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Инициализация бота
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 GROUP_ID = os.getenv('GROUP_ID')  # ID группы, куда будут пересылаться сообщения
-BOT_VERSION = "1.0.0"  # Версия бота
-
-# Настройка повторных попыток для запросов
-apihelper.ENABLE_MIDDLEWARE = True
-apihelper.RETRY_ON_ERROR = True
-apihelper.RETRY_ATTEMPTS = 3
-apihelper.RETRY_DELAY = 2
-
-# Команда для получения версии бота
-@bot.message_handler(commands=['version'])
-def send_version(message):
-    bot.reply_to(message, f"Версия бота: {BOT_VERSION}")
-    logging.info(f"Version requested: {BOT_VERSION}")
 
 # Команда для получения ID чата
 @bot.message_handler(commands=['getid'])
