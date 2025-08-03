@@ -1,6 +1,8 @@
 import telebot
 import os
 import logging
+import time
+from telebot import apihelper
 
 # Настройка логирования для отладки
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -8,6 +10,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Инициализация бота
 bot = telebot.TeleBot(os.getenv('BOT_TOKEN'))
 GROUP_ID = os.getenv('GROUP_ID')  # ID группы, куда будут пересылаться сообщения
+BOT_VERSION = "1.0.0"  # Версия бота
+
+# Настройка повторных попыток для запросов
+apihelper.ENABLE_MIDDLEWARE = True
+apihelper.RETRY_ON_ERROR = True
+apihelper.RETRY_ATTEMPTS = 3
+apihelper.RETRY_DELAY = 2
+
+# Команда для получения версии бота
+@bot.message_handler(commands=['version'])
+def send_version(message):
+    bot.reply_to(message, f"Версия бота: {BOT_VERSION}")
+    logging.info(f"Version requested: {BOT_VERSION}")
 
 # Команда для получения ID чата
 @bot.message_handler(commands=['getid'])
@@ -31,7 +46,7 @@ def handle_user_message(message):
             bot.set_chat_data(GROUP_ID, forwarded_message.message_id, {'original_chat_id': message.chat.id})
         except Exception as e:
             logging.error(f"Error forwarding message: {e}")
-            bot.send_message(message.chat.id, "Ошибка при пересылке сообщения.")
+            bot.send_message(message.chat.id, f"Ошибка при пересылке сообщения: {e}")
 
 # Обработчик всех текстовых сообщений в группе
 @bot.message_handler(content_types=['text'], func=lambda message: message.chat.id == int(GROUP_ID))
@@ -54,8 +69,11 @@ def handle_group_reply(message):
             logging.error(f"Error handling group reply: {e}")
             bot.send_message(GROUP_ID, f"Ошибка при отправке ответа: {e}")
 
-# Запуск бота
-try:
-    bot.polling(none_stop=True)
-except Exception as e:
-    logging.error(f"Polling error: {e}")
+# Запуск бота с обработкой ошибок
+while True:
+    try:
+        logging.info("Starting bot polling...")
+        bot.polling(none_stop=True, interval=0, timeout=20)
+    except Exception as e:
+        logging.error(f"Polling error: {e}")
+        time.sleep(5)  # Ждём 5 секунд перед повторной попыткой
