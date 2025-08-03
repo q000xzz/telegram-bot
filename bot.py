@@ -32,7 +32,10 @@ def handle_user_message(message):
             forwarded_message = bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
             logging.info(f"Message forwarded from {message.chat.id} to group {GROUP_ID}, forwarded message ID: {forwarded_message.message_id}")
             # Сохраняем связь в словаре
-            message_map[forwarded_message.message_id] = {'original_chat_id': message.chat.id}
+            message_map[forwarded_message.message_id] = {
+                'original_chat_id': message.chat.id,
+                'original_message_id': message.message_id
+            }
         except Exception as e:
             logging.error(f"Error forwarding message: {e}")
             bot.send_message(message.chat.id, f"Ошибка при пересылке сообщения: {e}")
@@ -50,8 +53,8 @@ def handle_group_reply(message):
             if chat_data and 'original_chat_id' in chat_data:
                 original_chat_id = chat_data['original_chat_id']
                 # Отправляем ответ пользователю
-                bot.send_message(original_chat_id, message.text)
-                logging.info(f"Reply sent to user {original_chat_id} from group {GROUP_ID}")
+                sent_message = bot.send_message(original_chat_id, message.text)
+                logging.info(f"Reply sent to user {original_chat_id} from group {GROUP_ID}, reply message ID: {sent_message.message_id}")
             else:
                 logging.warning(f"No chat data found for message ID {message.reply_to_message.message_id}")
         except Exception as e:
